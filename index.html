@@ -1106,11 +1106,47 @@ textarea::placeholder{color:var(--muted)}
     if (S.emotions.length) html += '<div class="sub-label">Эмоции</div><div class="chips">' + S.emotions.map(e => '<span class="chip static on">' + esc(e) + '</span>').join('') + '</div>';
     if (S.diary.trim()) html += '<div class="sub-label">Дневник</div><p class="quote">' + esc(S.diary.trim().slice(0, 220)) + (S.diary.trim().length > 220 ? '…' : '') + '</p>';
     if (!S.mood || !S.energy) html += '<p class="note">Состояние отмечено не полностью. Можно вернуться и отметить — или закрыть день как есть.</p>';
-    html += '<div class="btn-row"><button class="btn primary" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></svg><span>Отправить ' + esc(dat(cfg.assistantName)) + '</span></button>' +
+    html += '<div class="btn-row"><button class="btn primary" id="copyBtn"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span>Скопировать день</span></button>' +
+      '<button class="btn ghost" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></svg><span>Отправить ' + esc(dat(cfg.assistantName)) + '</span></button>' +
       '<button class="btn ghost" data-close>Ещё не всё</button></div>' +
-      (isTG ? '<p class="note" style="text-align:center">После отправки приложение закроется, а итог придёт в чат.</p>' : '');
+      '<p class="note" style="text-align:center">«Скопировать день» — надёжно: текст ляжет в буфер, вставь его в чат ' + esc(dat(cfg.assistantName)) + '.</p>';
     openSheet(html);
+    $('#copyBtn').onclick = copyDay;
     $('#sendBtn').onclick = closeDay;
+  }
+
+  function buildDayText() {
+    const c = counts();
+    const L = arr => arr.map(t => t.title).join('; ');
+    let out = '📋 Мой день ' + dayKey + '\n';
+    out += 'Сделано ' + c.done.length + ' из ' + c.active.length + (c.minDone ? ' · минимум ✓' : ' · минимум —') + '\n';
+    if (S.mood || S.energy) out += 'Настроение ' + (S.mood || '—') + '/5 · энергия ' + (S.energy || '—') + '/5\n';
+    if (c.done.length) out += '✅ ' + L(c.done) + '\n';
+    if (c.notDone.length) out += '⬜ Не сделано: ' + L(c.notDone) + '\n';
+    if (c.moved.length) out += '➡️ Перенесено: ' + L(c.moved) + '\n';
+    if (S.emotions && S.emotions.length) out += 'Эмоции: ' + S.emotions.join(', ') + '\n';
+    if (S.diary && S.diary.trim()) out += 'Дневник: ' + S.diary.trim() + '\n';
+    return out.trim();
+  }
+
+  function copyText(text, ok) {
+    const fin = () => { if (ok) ok(); };
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '-1000px';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); fin();
+      } catch (e) { try { window.prompt('Скопируй текст дня:', text); } catch (_) {} }
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(fin, fallback); }
+      else { fallback(); }
+    } catch (e) { fallback(); }
+  }
+
+  function copyDay() {
+    copyText(buildDayText(), () => toast('Скопировано — вставь в чат ' + dat(cfg.assistantName)));
+    closeDay();
   }
 
   function closeDay() {
